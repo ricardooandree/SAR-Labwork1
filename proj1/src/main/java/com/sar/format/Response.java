@@ -10,7 +10,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class Response {
-          /**
+    private final int MAXBUFFER_SIZE = 8192;
+    /**
      * Reply code information
      */
     public ReplyCode code;
@@ -27,7 +28,7 @@ public class Response {
     public File file;   // file used if text == null, for responses that contain a file  
     Main UserInterface;
     String IdStr;  // Thread id - for logging purposes
-/**
+    /**
      * Creates a new instance of HTTPAnswer
      * @param _UserInterface
      * @param IdStr
@@ -41,16 +42,16 @@ public class Response {
         setCookies = new ArrayList<>(); // Array List of Strings to contain the Strings that make up the several values of the Set_Cookie Header. 
         text = null;
         file = null;
-        /**
-         * define Server header field name
-         */
+
+        //Define Server header field name
         responseHeaders.setHeader("Server", server_name);
     }
 
     void Log(String s) {
-         UserInterface.Log (IdStr+ "  " + s );
+         UserInterface.Log (IdStr + "  " + s );
     }
    
+    // SETTER METHODS
     /* 
     Method to set the HTTP reply code of the answer
     */
@@ -63,13 +64,13 @@ public class Response {
     public void setVersion(String v) {
         code.setVersion(v);
     }
-     /* 
+    /* 
     Method to set an HTTP header of the answer
     */
     public void setHeader(String name, String value) {
         responseHeaders.setHeader(name, value);
     }
-  /* 
+    /* 
     Method to add a cookie value to the list of cookies that are to be sent in Set-Cookie Headers
     */
     public void setCookie(String setcookieLine) {
@@ -82,22 +83,53 @@ public class Response {
      * @param mime_enc */
     public void setFileHeaders(File _f, String mime_enc) {
         file = _f;
-        // header lines not set in 'Headers' object!
-        // ...
-        Log("Header fields not defined in HTTPAnswer.set_file\n");
-    }
+        // TODO-DONE: WEEK 1 - header lines not set in 'Headers' object!
+        // File Headers: HTTP/1.1 200 OK - Date, Server, Last-Modified, ETag, Content-Length, Connection, Content-Type - Data
 
+        if (file != null){
+            // Set 'Content-Length', 'Content-Type' and 'Last-Modified' header fields
+            responseHeaders.setHeader("Content-Length", String.valueOf(file.length()));
+            responseHeaders.setHeader("Content-Type", mime_enc);
+
+            // Create DateFormat object - http date format
+            DateFormat httpformat = new SimpleDateFormat("EE, d MMM yyyy HH:mm:ss zz", Locale.UK);
+            responseHeaders.setHeader("Last-Modified", httpformat.format( new Date(file.lastModified()) ));
+
+            // NOTE: Set 'Connection' header field
+        }
+
+        // Check if the header fields were set
+        if (responseHeaders.getHeaderValue("Content-Type") == null || responseHeaders.getHeaderValue("Content-Length") == null || responseHeaders.getHeaderValue("Last-Modified") == null){
+            Log("Failed to set header fields in HTTPAnswer.set_file\n");
+        }
+        
+        // Debug console log
+        System.out.println("<- DEBUG -> \nContent-Length: " + responseHeaders.getHeaderValue("Content-Length") + "\nContent-Type: " + responseHeaders.getHeaderValue("Content-Type") + "\nLast-Modified: " + responseHeaders.getHeaderValue("Last-Modified"));
+    }
+    
     /** Sets the headers needed in a reply with a locally generated HTML string
      * (_text object) and fill the text property with the String object 
      * containing the HTML to send
      * @param _text */
     public void setTextHeaders(String _text) {
         text = _text;
-        // header lines not set in 'Headers' object!
-        // ...
-        Log("Header fields not defined in HTTPAnswer.set_text\n");
+        // TODO-DONE: WEEK 1 - header lines not set in 'Headers' object!
+
+        if (text != null){
+            // Set 'Content-Length' and 'Content-Type' header fields
+            responseHeaders.setHeader("Content-Length", String.valueOf(text.length())); 
+            responseHeaders.setHeader("Content-Type", "text/html; charset=ISO-8859-1");
+        }
+
+        // Check if the header fields were set
+        if (responseHeaders.getHeaderValue("Content-Type") == null || responseHeaders.getHeaderValue("Content-Length") == null){
+            Log("Failed to set header fields in HTTPAnswer.set_text\n");
+        }
+
+        System.out.println("<- DEBUG -> \nContent-Length:" + responseHeaders.getHeaderValue("Content-Length") + "\nContent-Type: " + responseHeaders.getHeaderValue("Content-Type"));
     }
 
+    // GETTER METHODS
     /**
      * Returns the current value of the answer code
      * @return 
@@ -138,7 +170,6 @@ public class Response {
         responseHeaders.setHeader("Date", httpformat.format(new Date()));
     }
 
-
     /** Prepares an HTTP answer with an error code
      * @param _code
      * @param version */
@@ -165,13 +196,13 @@ public class Response {
         setTextHeaders(txt);
     }
 
-
     /** Sends the HTTP reply to the client using 'pout' text device
      * @param TextPrinter
      * @param send_data indicates if data is present in the response or only headers
      * @param echo
      * @throws java.io.IOException */
     public void send_Answer(PrintStream TextPrinter, boolean send_data, boolean echo) throws IOException {
+        echo = true;    // Debug Purposes
         if (code.getCodeTxt() == null) {
             code.setCode(ReplyCode.BADREQ);
         }
@@ -179,19 +210,43 @@ public class Response {
             Log("Answer: " + code.toString() + "\n");
         }
         TextPrinter.print(code.toString() + "\r\n");
-        /**
-         * Send all headers except set_cookie using headers Object writeHeaders
+        // TODO-DONE: WEEK 1 - Send all headers except set_cookie using headers Object writeHeaders
+        /*
+         * HTTP/1.1 200 OK
+         * Date: Wed, 27 Feb 2012 12:00:00 GMT
+         * Server: Apache/2.2.8 (Fedora)
+         * Last-Modified: Thu, 28 Set 2003 19:00:00 GMT
+         * ETag: “405990-4ac-4478e4405c6c0”
+         * Content-Length: 6821
+         * Connection: close
+         * Content-Type: text/html; charset=ISO-8859-1
+         * … { dados html } …
          */
-        // ...
+        
+        // Set date
+        setDate();
+
+        // Send all headers - except 'Set-Cookie'
+        responseHeaders.writeHeaders(TextPrinter, echo); 
 
         /**
+         * TODO-DONE: WEEK 1 - Send 'Set-Cookie'
          * Check if there are cookies to send if so add the corresponding Set-Cookie Headers
          * Set-Cookies have to be sent manually using TextPrinter without using the Headers object 
          * since it uses a Properties Object to store the headers and there can be multiple Set-cookie headers 
          * and a Properties cannot have two Keys with the same value
          */
-        // ...
-        Log("HTTPAnswer does not yet send headers\n");
+        
+        ArrayList <String> cookiesList = getSetCookies();
+        if (cookiesList.size() > 0){
+            for (String cookies : cookiesList){
+                TextPrinter.print("Set-Cookie: " + cookies + "\r\n");
+
+                if (echo){
+                    Log("Set-Cookie: " + cookies + "\n");
+                }
+            }
+        }
         TextPrinter.print("\r\n");
 
         if (send_data) {
@@ -201,14 +256,27 @@ public class Response {
             } else if (file != null) {
                 try (FileInputStream fin = new FileInputStream(file)) {
                     byte [] data = new byte [fin.available()];
-                    fin.read( data );  // Read the entire file to buffer 'data'
-                    // IMPORTANT - Please modify this code to send a file chunk-by-chunk
-                    //             to avoid having CRASHES with BIG FILES
-                    Log("HTTPAnswer may fail for large files - please modify it\n");
-                    TextPrinter.write(data);
+                    // TODO-DONE: WEEK 1 - Modify this code to send a file chunk-by-chunk to avoid having CRASHES with BIG FILES
+
+                    // Read the entire file to buffer 'data'
+                    fin.read(data);
+                    
+                    // Read the file in chunks of MAXBUFFER_SIZE bytes and output it
+                    int size = data.length;
+                    int chunks = size / MAXBUFFER_SIZE;
+                    
+                    for (int i=0; i < chunks; i++) {
+                        TextPrinter.write(data, i*MAXBUFFER_SIZE, MAXBUFFER_SIZE);
+                    }
+                    // Last chunk - might not be of size chunk
+                    TextPrinter.write(data, chunks*MAXBUFFER_SIZE, size - chunks*MAXBUFFER_SIZE);
+                    fin.close();
+
+                    // Previous code - read the entire file to buffer 'data' and output it
+                    //TextPrinter.write(data);
                 }
-                catch (IOException e ) {
-                  System.out.println( "I/O error opeening FileInputStream " + e );
+                catch (IOException e) {
+                  System.out.println( "I/O error opening FileInputStream " + e);
                 }
             } else if ((code.getCode() != ReplyCode.NOTMODIFIED)&&(code.getCode() != ReplyCode.TMPREDIRECT)) {
                 Log("Internal server error sending answer\n");
