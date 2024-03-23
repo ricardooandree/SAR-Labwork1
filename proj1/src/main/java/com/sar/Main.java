@@ -14,7 +14,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 public class Main {
     
     //Static Files Location directory
-    public final String ServerName= "SAR Server by ----/-----";
+    public final String ServerName= "SAR Server by 56128";
     public final static String StaticFiles = "proj1/html";
     public final static String HOMEFILENAME = "index.htm";
     //Keep alive settings
@@ -76,7 +76,7 @@ public class Main {
     public void thread_started () {
         if (MainThread != null) {
             n_threads++;
-            Log("Number of active Threads: "+n_threads);
+            Log("Number of active Threads: " + n_threads + "\n");
         }
     }
     
@@ -84,7 +84,7 @@ public class Main {
     public void thread_ended () {
         if (MainThread != null) {
             n_threads--;
-            Log("Number of active Threads: "+n_threads);
+            Log("Number of active Threads: " + n_threads + "\n");
         }
     }
     

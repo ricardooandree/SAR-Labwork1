@@ -102,9 +102,6 @@ public class Response {
         if (responseHeaders.getHeaderValue("Content-Type") == null || responseHeaders.getHeaderValue("Content-Length") == null || responseHeaders.getHeaderValue("Last-Modified") == null){
             Log("Failed to set header fields in HTTPAnswer.set_file\n");
         }
-        
-        // Debug console log
-        System.out.println("<- DEBUG -> \nContent-Length: " + responseHeaders.getHeaderValue("Content-Length") + "\nContent-Type: " + responseHeaders.getHeaderValue("Content-Type") + "\nLast-Modified: " + responseHeaders.getHeaderValue("Last-Modified"));
     }
     
     /** Sets the headers needed in a reply with a locally generated HTML string
@@ -125,8 +122,6 @@ public class Response {
         if (responseHeaders.getHeaderValue("Content-Type") == null || responseHeaders.getHeaderValue("Content-Length") == null){
             Log("Failed to set header fields in HTTPAnswer.set_text\n");
         }
-
-        System.out.println("<- DEBUG -> \nContent-Length:" + responseHeaders.getHeaderValue("Content-Length") + "\nContent-Type: " + responseHeaders.getHeaderValue("Content-Type"));
     }
 
     // GETTER METHODS
@@ -202,7 +197,7 @@ public class Response {
      * @param echo
      * @throws java.io.IOException */
     public void send_Answer(PrintStream TextPrinter, boolean send_data, boolean echo) throws IOException {
-        echo = true;    // Debug Purposes
+        //echo = true;    // Debug Purposes
         if (code.getCodeTxt() == null) {
             code.setCode(ReplyCode.BADREQ);
         }
@@ -222,7 +217,7 @@ public class Response {
          * Content-Type: text/html; charset=ISO-8859-1
          * … { dados html } …
          */
-        
+        System.out.println("<- DEBUG FIRST LINE -> " + get_first_line());
         // Set date
         setDate();
 

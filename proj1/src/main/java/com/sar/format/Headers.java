@@ -101,6 +101,7 @@ public class Headers {
      * @throws IOException when a socket error occurs
      */
     public void writeHeaders(PrintStream TextPrinter, boolean echo) throws IOException {
+        System.out.println("<- DEBUG WRITEHEADERS ->");
         for (String hdrName : headers.stringPropertyNames()) {
                 // Single value parameter
                 String val = headers.getProperty(hdrName);
@@ -108,5 +109,6 @@ public class Headers {
                 if (echo) 
                 HttpServer.Log(hdrName + ": " + val + "\n");
         }
+        System.out.println("<- DEBUG WRITEHEADERS ->");
     }
 }
