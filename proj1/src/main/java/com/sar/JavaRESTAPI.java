@@ -141,10 +141,10 @@ public class JavaRESTAPI {
             
     /** Runs GET method */
     public boolean doGet(Socket s, Headers headers, Properties cookies, Response reply) { 
-      System.out.println("run API GET");
+        System.out.println("run API GET");
 
-        String group="", nam1="", n1="", nam2="", n2="", nam3="", n3="", lastUpdate="";
-        int cnt= -1;
+        String group = "", nam1 = "", n1 = "", nam2 = "", n2 = "", nam3 = "", n3 = "", lastUpdate = "";
+        int cnt = -1;
         /**
          *      This part must check if the browser is sending the sarCookie
          *      If it is, it must deliver a web page with the last group introduced by the user
@@ -153,12 +153,13 @@ public class JavaRESTAPI {
         System.out.println("Cookies ignored in API GET");
 
         // Prepare html page
-        String html= make_Page(s.getInetAddress().getHostAddress(), s.getPort(), headers.getHeaderValue("User-Agent"), 
+        String html = make_Page(s.getInetAddress().getHostAddress(), s.getPort(), headers.getHeaderValue("User-Agent"), 
                 group, cnt, n1, nam1, n2, nam2, n3, nam3, false, lastUpdate);
 
         // Prepare answer
         reply.setCode(ReplyCode.OK);
-        reply.setTextHeaders(html); //sets text headers. 
+        reply.setTextHeaders(html); //sets text headers
+        
         // Complete the code. Add the missing header fields!
         System.out.println("Missing header fields in API GET");
         return true;

@@ -14,10 +14,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 public class ConnectionThread extends Thread {
     Main HTTPServer;
@@ -105,7 +108,7 @@ public class ConnectionThread extends Thread {
      
         // Read the remaining headers using the readHeaders method of the headers property of the request object   
         req.headers.readHeaders(TextReader, echo);
-        
+
         // Check if the Content-Length size is different than zero. If true read the body of the request (that can contain POST data)
         int clength = 0;
         try {
@@ -146,6 +149,74 @@ public class ConnectionThread extends Thread {
     }    
    
 
+    /* Authenticates the user 
+     * @param authHeader - String containing the Authorization header value
+     * @return bool - true if the user is authenticated, false otherwise
+     */
+    public boolean authentication(String authHeader) {
+        // Check if the Authentication header exists
+        if (authHeader == null)
+            return false;
+
+        // Decode and extract the username and password from the Authorization header
+        String encodedCredentials = authHeader.substring("Basic".length()).trim();
+        byte[] decodedBytes = Base64.getDecoder().decode(encodedCredentials);
+        String decodedCredentials = new String(decodedBytes, StandardCharsets.UTF_8);
+        String[] credentials = decodedCredentials.split(":");
+
+        // Assign the credentials to their respective variables
+        String usernameForm = credentials[0];
+        String passwordForm = credentials[1];
+
+        System.out.println("<- DEBUG CREDENTIALS -> " + usernameForm + ":" + passwordForm);
+
+        // Access the crendetials from the Main class
+        String[] userPass = Main.UserPass.split(":");
+
+        // Assign the credentials to their respective variables
+        String username = userPass[0];
+        String password = userPass[1];
+
+        // Return the result of the authentication
+        return usernameForm.equals(username) && passwordForm.equals(password);
+    }
+
+
+    /* Checks if the file has been modified 
+     * @param req - Request object containing the request received from the client
+     * @param file - File object containing the file to be checked
+     * @return bool - true if the file has been modified, false otherwise
+    */
+    public boolean modified(Request req, File f) {
+        // Get the last modified date of the file
+        long lastModified = f.lastModified();
+
+        // Get the If-Modified-Since header value
+        String ifModifiedSinceHeader = req.headers.getHeaderValue("If-Modified-Since");
+
+        // Check if the If-Modified-Since header is set
+        if (ifModifiedSinceHeader != null) {
+            try {
+                // Parse the If-Modified-Since header value
+                long ims = HttpDateFormat.parse(ifModifiedSinceHeader).getTime();
+
+                // DEBUG
+                System.out.println("<- DEBUG IMS -> " + ims + "\n<- DEBUG LAST-MODIFIED -> " + lastModified);
+
+                // Check if the file has been modified
+                return lastModified > ims;
+
+            } catch (Exception e) {
+                System.out.println("Error parsing If-Modified-Since header: " + e);
+                return false;
+            }
+        }
+
+        // File has been modified
+        return true;
+    }
+
+
     @Override
     public void run() {
         Response res = null;   // HTTP response object
@@ -167,20 +238,18 @@ public class ConnectionThread extends Thread {
             do {
                 // Create Request using GetRequest method
                 req = GetRequest(TextReader, true); //reads the input http request if everything was read ok it returns true
-
+                
                 // If a valid request was received
                 if (req != null) { 
 
+                    // Create HTTP response object
+                    res = new Response( HTTPServer, client.getInetAddress().getHostAddress() + ":"
+                                        + client.getPort(), HTTPServer.ServerName + " - "
+                                        + InetAddress.getLocalHost().getHostName() + "-"
+                                        + HTTPServer.server.getLocalPort() );
+
                     // TODO-DONE: WEEK 3 - Redirect connection to HTTPS if needed
-                    // TODO-NOTE: If authorized
-                    System.out.println("<- DEBUG REQUEST-VERSION -> " + req.version);
-
-                    if (req.LocalPort != HTTPServer.getPortHTTPS()) {   // HTTP request - Redirect to HTTPS
-                        res = new Response( HTTPServer, client.getInetAddress().getHostAddress() + ":"
-                                            + client.getPort(), HTTPServer.ServerName + " - "
-                                            + InetAddress.getLocalHost().getHostName() + "-"
-                                            + HTTPServer.server.getLocalPort() );
-
+                    if (req.LocalPort != HTTPServer.getPortHTTPS()) {   // HTTP Request - Redirect to HTTPS
                         // Set code to temporary redirect
                         res.setCode(ReplyCode.TMPREDIRECT);
 
@@ -209,12 +278,48 @@ public class ConnectionThread extends Thread {
                         res.send_Answer(TextPrinter, false, true);
 
                     } else {    // HTTPS Request - Processing
-                        // Create an HTTP response object
-                        res = new Response( HTTPServer, client.getInetAddress ().getHostAddress () + ":" 
-                                            + client.getPort(), HTTPServer.ServerName + " - " 
-                                            + InetAddress.getLocalHost().getHostName() + "-" 
-                                            + HTTPServer.server.getLocalPort() );
-                        
+                        // TODO: WEEK 4 - Authorization
+                        if (Main.Authorization) {
+                            System.out.println("<- DEBUG AUTHORIZATION ->");
+                            // Check if the request contains a valid authorization token (cookie)
+                            Properties cookies = req.get_cookies();
+                            String authCookie = cookies.getProperty("authToken");
+
+                            // Check if there's any authorization token (cookie)
+                            if (authCookie == null) {
+                                System.out.println("<- DEBUG AUTH-TOKEN -> " + authCookie);
+                                String authHeader = req.headers.getHeaderValue("Authorization");
+
+                                // Authenticates the user credentials
+                                if (!authentication(authHeader)) {  // Authentication unsuccessful
+                                    System.out.println("<- DEBUG FAILED-AUTH-HEADER -> " + authHeader);
+                                    res.setCode(ReplyCode.UNAUTHORIZED);
+                                    res.setVersion(req.version);
+
+                                    // Set WWW-Authenticate header 
+                                    res.responseHeaders.setHeader("WWW-Authenticate", "Basic");
+
+                                    res.send_Answer(TextPrinter, false, true);
+
+                                    // Exit the loop to prompt for credentials again
+                                    break;
+
+                                } else {    // Authentication successful
+                                    System.out.println("<- DEBUG SUCCESS-AUTH-HEADER -> " + authHeader);
+                                    // Generate authorization token (session token)
+                                    // TODO: Get current date and create an expiring date
+                                    String formattedExpirationDate = "Fri, 29-Mar-2024 17:43:00 GMT";
+                                    String authToken = "authToken=yes;expires=" + formattedExpirationDate;
+                                    
+                                    // Set authorization cookie
+                                    res.setCookie(authToken);
+
+                                    // Remove Authorization header
+                                    // req.headers.removeHeader("Authorization");
+                                }
+                            }
+                        }
+                        System.out.println("<- DEBUG PROCESSING-HTTPS-REQ ->");
                         // Check if the request is to the API - API URL received 
                         if (req.UrlText.toLowerCase().endsWith("api")) {
                             while (req.UrlText.startsWith("/"))
@@ -242,14 +347,25 @@ public class ConnectionThread extends Thread {
                             File f = new File(filename);
 
                             if (f.exists() && f.isFile()) {
-                                // TODO: WEEK 4 - if file was modified --
+                                // TODO: WEEK 4 - Modified file DONE
+                                if (modified(req, f)) {    // File has been modified
+                                    res.setCode(ReplyCode.OK);
+                                    res.setVersion(req.version);
+                                    res.setFileHeaders(new File(filename), GuessMime(filename));
 
+                                } else {   // File has not been modified
+                                    res.setCode(ReplyCode.NOTMODIFIED);
+                                    res.setVersion(req.version);
+                                }
+
+                                /* 
                                 // Define reply contents
                                 res.setCode(ReplyCode.OK);
                                 res.setVersion(req.version);
                                 res.setFileHeaders(new File(filename), GuessMime(filename));
                                 // NOTICE that only the first line of the reply is sent!
                                 // No additional headers are defined!
+                                */
                             } else {
                                 System.out.println("File not found");
                                 res.set_error(ReplyCode.NOTFOUND, req.version);
@@ -260,16 +376,13 @@ public class ConnectionThread extends Thread {
                         res.send_Answer(TextPrinter, true, true);
 
                         // Check if the connection should be kept alive
-                        String connectionHeader = req.headers.getHeaderValue("Connection");
-
-                        // Debug
-                        System.out.println("<- DEBUG KEEP-ALIVE ->" + "\nConnection: " + connectionHeader);
+                        String connectHeader = req.headers.getHeaderValue("Connection");
 
                         // Check if the connection header is set to keep-alive
-                        keepAlive = connectionHeader != null && connectionHeader.equalsIgnoreCase("keep-alive");
+                        keepAlive = connectHeader != null && connectHeader.equalsIgnoreCase("keep-alive");
 
-                        // Debug
-                        System.out.println("keep-alive: " + keepAlive + "\n<- DEBUG KEEP-ALIVE ->");
+                        // DEBUG
+                        System.out.println("<- DEBUG CONNECTION -> " + connectHeader + "\n<- DEBUG KEEP-ALIVE -> " + keepAlive);
                     }
                 } else {    // Invalid request - if req == null
                     res = new Response( HTTPServer, client.getInetAddress().getHostAddress() + ":"
@@ -279,7 +392,7 @@ public class ConnectionThread extends Thread {
 
                     // Sets the error code to bad request
                     res.set_error(ReplyCode.BADREQ, "HTTP/1.1");
-                    
+
                     keepAlive = false;
                 }
             } while (keepAlive);
